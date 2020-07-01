@@ -1,7 +1,10 @@
 // src/logical/user/user.service.ts
 import { Injectable } from '@nestjs/common';
-import * as Sequelize from 'sequelize'; // 引入 Sequelize 库
+import Sequelize from 'sequelize'; // 引入 Sequelize 库
 import sequelize from '../../database/sequelize'; // 引入 Sequelize 实例
+
+import fs from 'fs';
+import readline from 'readline';
 
 import { makeSalt, encryptPassword } from '../../util/cryptogram'; // 引入加密函数
 
@@ -14,13 +17,13 @@ export class UserService {
   async findOne(username: string): Promise<any | undefined> {
     const sql = `
       SELECT
-        user_id userId, account_name username, real_name realName, passwd password,
-        passwd_salt salt, mobile, role
+        user_id , account_name , real_name , passwd ,
+        passwd_salt , mobile, role
       FROM
         admin_user
       WHERE
         account_name = '${username}'
-    `; // 一段平淡无奇的 SQL 查询语句
+    `;
     try {
       const user = (await sequelize.query(sql, {
         type: Sequelize.QueryTypes.SELECT, // 查询方式
@@ -74,5 +77,63 @@ export class UserService {
         msg: `Service error: ${error}`,
       };
     }
+  }
+
+  // 插入
+  async insert(): Promise<any> {
+    const instream = fs.createReadStream('./Orthogroups.txt');
+    const rl = readline.createInterface(instream);
+
+    let fastaIdList: any[] = [];
+    let fastaIdIndex = 0;
+
+    rl.on('line', function(line) {
+      console.time('line count');
+
+      // 解析文件内存，存入到数组
+      const fastaName = line.split(':')[0];
+      const idList = line.split(':')[1];
+      let temList = idList.trim().split(' ');
+      temList = [...new Set(temList)];
+      try {
+        temList.forEach(ele => {
+          fastaIdList.push([ele, fastaName]);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
+    rl.on('close', function() {
+      // 开启事务，保证批处理健康完成
+      sequelize
+        .transaction(t => {
+          const tagIndex = 0;
+          let sql = `INSERT INTO fasta (gene_id,fasta_id) VALUES`;
+          // TODO:此处需要按长度切割后insert
+          for (let i = 0; i < fastaIdList.length; i++) {
+            const ele = fastaIdList[i];
+            if (i === fastaIdList.length - 1) {
+              console.log(i);
+              sql = `${sql} ('${ele[0]}','${ele[1]}');`;
+              break;
+            }
+            sql = `${sql} ('${ele[0]}','${ele[1]}'),`;
+          }
+          return sequelize.query(sql, {
+            type: Sequelize.QueryTypes.INSERT,
+            logging: false,
+            transaction: t,
+          });
+        })
+        .then(results => {
+          console.log('操作成功');
+        })
+        .catch(err => {
+          console.log('操作失败');
+        });
+
+      console.log(fastaIdList.splice(0, 100));
+    });
   }
 }

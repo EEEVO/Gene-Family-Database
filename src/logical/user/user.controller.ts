@@ -9,4 +9,9 @@ export class UserController {
   async register(@Body() body: any) {
     return await this.usersService.register(body);
   }
+
+  @Post('insert')
+  async insert() {
+    return await this.usersService.insert();
+  }
 }
