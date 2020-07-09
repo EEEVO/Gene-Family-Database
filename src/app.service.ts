@@ -1,17 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from './common/config/config.service';
+import { ConfigService, IProteinObject } from './common/config/config.service';
 
 @Injectable()
 export class AppService {
+  private readonly proteinObject: IProteinObject;
   constructor(private readonly configService: ConfigService) {}
 
   getHello(): string {
     return 'Hello World!';
   }
 
-  getMy(): string {
-    // TODO:此处全局模块使用方式应该有问题
-    console.log(this.configService.getProteinObject);
-    return 'Hello My!';
+  getMy(id: string): string {
+    return this.configService.getProteinObject[id];
   }
 }

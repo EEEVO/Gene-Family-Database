@@ -20,8 +20,10 @@ export class ConfigService {
   constructor(filePath: string) {
     const config = dotenv.parse(fs.readFileSync(filePath));
     this.envConfig = this.validateInput(config);
-    this.proteinObject = {};
-    this.initProteinObject(this.TXTFilesPath);
+
+    this.initProteinObject(this.TXTFilesPath).then(res => {
+      this.proteinObject = res;
+    });
   }
 
   /**
@@ -50,48 +52,52 @@ export class ConfigService {
     return Number(this.envConfig.SERVER_PORT);
   }
 
-  private initProteinObject(TXTFilesPath: string): void {
-    try {
+  private async initProteinObject(TXTFilesPath: string): Promise<any> {
+    return new Promise(async (resolve, reject) => {
       fs.readdir(TXTFilesPath, (err, files: string[]) => {
         if (err) {
           console.error(err);
           return;
         }
-        files.forEach(async file => {
-          const filrdir: string = path.join(TXTFilesPath, file);
-          if (file !== 'txt.txt' && file !== 'txt2.txt') {
-            return;
-          }
-          fs.stat(filrdir, (err, stats) => {
-            if (err) {
-              console.error(err);
-              return;
-            }
-            if (stats.isFile()) {
-              // // 创建一个文件流
-              const inStream = fs.createReadStream(filrdir);
-              const rl = readline.createInterface(inStream);
-              // 开始解析操作
-              rl.on('line', line => {
-                const fastaName = line.split(':')[0];
-                const idList = line.split(':')[1];
-                let temList = idList.trim().split(' ');
-                temList = [...new Set(temList)];
-                try {
-                  temList.forEach((ele: string) => {
-                    this.proteinObject[ele] = fastaName;
-                  });
-                } catch (e) {
-                  console.error(e);
+        const promises = files.map(file => {
+          return new Promise((resolve, reject) => {
+            const filrdir: string = path.join(TXTFilesPath, file);
+            if (path.extname(filrdir) === '.txt') {
+              fs.stat(filrdir, async (err, stats) => {
+                if (err) {
+                  console.error(err);
+                  return;
+                }
+                if (stats.isFile()) {
+                  const rl = readline.createInterface(
+                    fs.createReadStream(filrdir),
+                  );
+                  const proteinObject: IProteinObject = {};
+                  for await (const line of rl) {
+                    const fastaName = line.split(':')[0];
+                    const idList = line.split(':')[1];
+                    let temList = [];
+                    temList = [...new Set(idList.trim().split(' '))];
+                    for (let i = 0; i < temList.length; i++) {
+                      const ele = temList[i];
+                      proteinObject[ele] = fastaName;
+                    }
+                  }
+                  resolve(proteinObject);
                 }
               });
+            } else {
+              resolve({});
             }
           });
         });
+        let res = {};
+        Promise.all(promises).then(arr => {
+          arr.forEach(item => Object.assign(res, item));
+          resolve(res);
+        });
       });
-    } catch (error) {
-      console.error(error);
-    }
+    });
   }
 
   get getProteinObject(): IProteinObject {
