@@ -21,6 +21,11 @@ export class ConfigService {
     const config = dotenv.parse(fs.readFileSync(filePath));
     this.envConfig = this.validateInput(config);
 
+    this.updataProteinObject();
+  }
+
+  // 上传文件后直接更新
+  updataProteinObject() {
     this.initProteinObject(this.TXTFilesPath).then(res => {
       this.proteinObject = res;
     });
